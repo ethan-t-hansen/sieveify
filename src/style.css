@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('https://unpkg.com/geist/dist/fonts/geist-pixel/GeistPixel-Grid.woff2')
+    format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'Geist Pixel', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #0a0f0a;
+  color: #e7f7b3;
+}
+
+canvas {
+  image-rendering: pixelated;
+}
+
+.terminal-grid {
+  background-image: linear-gradient(rgba(231, 247, 179, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(231, 247, 179, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
