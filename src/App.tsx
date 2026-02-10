@@ -25,12 +25,15 @@ const clamp = (value: number, min: number, max: number) =>
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const imageRef = useRef<HTMLImageElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const smallCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const pixelDataRef = useRef<ImageData | null>(null)
   const animationRef = useRef<number | null>(null)
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [sourceType, setSourceType] = useState<'video' | 'image'>('video')
   const [isReady, setIsReady] = useState(false)
   const [sourceWidth, setSourceWidth] = useState(0)
   const [sourceHeight, setSourceHeight] = useState(0)
@@ -67,8 +70,12 @@ export default function App() {
 
   const drawPixelFrame = useCallback(() => {
     const video = videoRef.current
+    const image = imageRef.current
     const outputCanvas = canvasRef.current
-    if (!video || !outputCanvas || !isReady) return
+    if (!outputCanvas || !isReady) return
+
+    const source = sourceType === 'image' ? image : video
+    if (!source) return
 
     const width = Math.max(1, targetWidth)
     const height = Math.max(1, targetHeight)
@@ -85,7 +92,7 @@ export default function App() {
     const smallCtx = smallCanvas.getContext('2d', { willReadFrequently: true })
     if (!smallCtx) return
 
-    smallCtx.drawImage(video, 0, 0, width, height)
+    smallCtx.drawImage(source, 0, 0, width, height)
     const pixelData = smallCtx.getImageData(0, 0, width, height)
     pixelDataRef.current = pixelData
 
@@ -116,7 +123,7 @@ export default function App() {
         outputCtx.fillRect(drawX, drawY, cellSize, cellSize)
       }
     }
-  }, [borderSize, cellSize, isReady, targetHeight, targetWidth])
+  }, [borderSize, cellSize, isReady, sourceType, targetHeight, targetWidth])
 
   const stopLoop = useCallback(() => {
     if (animationRef.current) {
@@ -136,7 +143,7 @@ export default function App() {
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || sourceType !== 'video') return
 
     const handlePlay = () => startLoop()
     const handlePause = () => stopLoop()
@@ -150,7 +157,7 @@ export default function App() {
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', handlePause)
     }
-  }, [startLoop, stopLoop])
+  }, [sourceType, startLoop, stopLoop])
 
   useEffect(() => {
     if (isReady) {
@@ -163,17 +170,42 @@ export default function App() {
       if (videoUrl) {
         URL.revokeObjectURL(videoUrl)
       }
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl)
+      }
     }
-  }, [videoUrl])
+  }, [imageUrl, videoUrl])
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleVideoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl)
+      setImageUrl(null)
+    }
     if (videoUrl) {
       URL.revokeObjectURL(videoUrl)
     }
     const url = URL.createObjectURL(file)
     setVideoUrl(url)
+    setSourceType('video')
+    setIsReady(false)
+  }
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (videoUrl) {
+      URL.revokeObjectURL(videoUrl)
+      setVideoUrl(null)
+      stopLoop()
+    }
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl)
+    }
+    const url = URL.createObjectURL(file)
+    setImageUrl(url)
+    setSourceType('image')
     setIsReady(false)
   }
 
@@ -182,6 +214,15 @@ export default function App() {
     if (!video) return
     setSourceWidth(video.videoWidth)
     setSourceHeight(video.videoHeight)
+    setIsReady(true)
+    drawPixelFrame()
+  }
+
+  const handleImageLoaded = () => {
+    const image = imageRef.current
+    if (!image) return
+    setSourceWidth(image.naturalWidth)
+    setSourceHeight(image.naturalHeight)
     setIsReady(true)
     drawPixelFrame()
   }
@@ -262,7 +303,7 @@ export default function App() {
   const handleVideoExport = async () => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || !isReady || isExporting) return
+    if (!video || !canvas || !isReady || isExporting || sourceType !== 'video') return
 
     const mimeType = supportedVideoMimes[videoFormat]
     if (!mimeType) {
@@ -340,7 +381,19 @@ export default function App() {
                 <input
                   type="file"
                   accept="video/*"
-                  onChange={handleFileChange}
+                  onChange={handleVideoChange}
+                  className="w-full border border-lime-200/30 bg-transparent px-3 py-2 text-sm text-lime-100 file:mr-4 file:border-0 file:bg-lime-200 file:px-3 file:py-1 file:text-xs file:font-semibold file:uppercase file:text-[#0a0f0a] hover:file:bg-lime-100"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium uppercase  text-lime-200/70">
+                  Image file
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
                   className="w-full border border-lime-200/30 bg-transparent px-3 py-2 text-sm text-lime-100 file:mr-4 file:border-0 file:bg-lime-200 file:px-3 file:py-1 file:text-xs file:font-semibold file:uppercase file:text-[#0a0f0a] hover:file:bg-lime-100"
                 />
               </div>
@@ -425,6 +478,7 @@ export default function App() {
                   value={videoFormat}
                   onChange={(event) => setVideoFormat(event.target.value as VideoFormat)}
                   className="w-full border border-lime-200/30 bg-transparent px-3 py-2 text-sm text-lime-100"
+                  disabled={sourceType !== 'video'}
                 >
                   {VIDEO_FORMATS.map((format) => (
                     <option
@@ -436,7 +490,9 @@ export default function App() {
                     </option>
                   ))}
                 </select>
-                {exportError ? (
+                {sourceType !== 'video' ? (
+                  <p className="text-xs text-lime-200/60">Video export is available for video uploads only.</p>
+                ) : exportError ? (
                   <p className="text-xs text-rose-200">{exportError}</p>
                 ) : (
                   <p className="text-xs text-lime-200/60">
@@ -447,7 +503,12 @@ export default function App() {
 
               <Button
                 onClick={handleVideoExport}
-                disabled={!isReady || isExporting || !supportedVideoMimes[videoFormat]}
+                disabled={
+                  sourceType !== 'video' ||
+                  !isReady ||
+                  isExporting ||
+                  !supportedVideoMimes[videoFormat]
+                }
                 variant="outline"
                 className="w-full"
               >
@@ -459,17 +520,27 @@ export default function App() {
           <Card>
             <CardHeader>
               <CardTitle>Preview</CardTitle>
-              <CardDescription>Play the video to update the pixelated frame.</CardDescription>
+              <CardDescription>Preview the uploaded source and pixel output.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="border border-lime-200/30 bg-[#0a110a] p-3">
-                <video
-                  ref={videoRef}
-                  src={videoUrl ?? undefined}
-                  onLoadedMetadata={handleVideoLoaded}
-                  controls
-                  className="h-auto w-full border border-lime-200/30"
-                />
+                {sourceType === 'image' ? (
+                  <img
+                    ref={imageRef}
+                    src={imageUrl ?? undefined}
+                    onLoad={handleImageLoaded}
+                    alt="Uploaded source"
+                    className="h-auto w-full border border-lime-200/30"
+                  />
+                ) : (
+                  <video
+                    ref={videoRef}
+                    src={videoUrl ?? undefined}
+                    onLoadedMetadata={handleVideoLoaded}
+                    controls
+                    className="h-auto w-full border border-lime-200/30"
+                  />
+                )}
               </div>
 
               <div className="border border-lime-200/30 bg-[#0a110a] p-4">
